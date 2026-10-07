@@ -1,0 +1,14 @@
+SUPABASE_URL=https://yourproject.supabase.co
+SUPABASE_PUBLISHABLE_KEY=yourkey
+SUPABASE_SECRET_KEY=yourkey
+SUPABASE_JWKS_URL=yoururl
+
+DATABASE_URL=postgresql://postgres:yourpassword@db.mazyvgziyiaxcpvyytgr.supabase.co:5432/postgres
+
+FRONTEND_ORIGIN=http://localhost:5173
+piston_url=http://localhost:2000/api/v2
+
+
+GITHUB_CLIENT_ID=your-client-id
+GITHUB_CLIENT_SECRET=your-client-secret
+PUBLIC_BACKEND_URL=http://localhost:8000

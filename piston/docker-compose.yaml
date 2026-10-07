@@ -1,0 +1,20 @@
+services:
+  piston:
+    image: ghcr.io/engineer-man/piston
+    container_name: piston_api
+    restart: unless-stopped
+    privileged: true            # Piston's sandbox needs this
+    ports:
+      - "127.0.0.1:2000:2000"   # reachable from this computer only, never from the network
+    environment:
+      PISTON_RUN_TIMEOUT: "60000"       # wall time: lets a program wait while you type
+      PISTON_RUN_CPU_TIME: "10000"      # CPU time: still stops busy loops, and gives Java room to start
+      PISTON_COMPILE_TIMEOUT: "20000"
+      PISTON_OUTPUT_MAX_SIZE: "65536"   # the default of 1024 characters is too small for a console
+    volumes:
+      - piston_packages:/piston/packages   # installed languages survive restarts
+    tmpfs:
+      - /tmp:exec
+
+volumes:
+  piston_packages:
