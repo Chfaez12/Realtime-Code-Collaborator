@@ -12,25 +12,29 @@ import { useCodeRunner } from "../../hooks/useCodeRunner";
 import { useFollowMode } from "../../hooks/useFollowMode";
 import { useComments } from "../../hooks/useComments";
 import { useAuthorKey } from "../../hooks/useAuthorKey";
+import { useAuth } from "../../hooks/useAuth";
+import { useAiChat } from "../../hooks/useAiChat";
+import { useAiReview } from "../../hooks/useAiReview";
+import { useAiCompletions } from "../../hooks/useAiCompletions";
 import ParticipantList from "../session/ParticipantList";
 import ShareLinkModal from "../session/ShareLinkModal";
 import SessionSettings from "../session/SessionSettings";
 import PermissionToggle from "../session/PermissionToggle";
+import ExportGitHubModal from "../session/ExportGitHubModal";
 import HistoryModal from "../history/HistoryModal";
 import ChatPanel from "../chat/ChatPanel";
 import CommentsPanel from "../comments/CommentsPanel";
+import AiPanel from "../ai/AiPanel";
 import RunButton from "../execution/RunButton";
 import OutputConsole from "../execution/OutputConsole";
 import LanguageSelector from "./LanguageSelector";
 import { DEFAULT_LANGUAGE, LANGUAGES, type LanguageOption } from "../../utils/languages";
-import { useAuth } from "../../hooks/useAuth";
-import ExportGitHubModal from "../session/ExportGitHubModal";
-
 
 interface CodeEditorProps {
   roomName: string;
   displayName?: string;
-  onAuthRejected?: () => void; // called when the server refuses our password
+  onAuthRejected?: () => void;
+  onSessionEnded?: () => void;
 }
 
 const headerButton: CSSProperties = {
@@ -43,9 +47,19 @@ const headerButton: CSSProperties = {
   cursor: "pointer",
 };
 
-export default function CodeEditor({ roomName, displayName, onAuthRejected }: CodeEditorProps) {
+const AI_SUGGESTIONS_KEY = "collab-ai-suggestions";
+
+function readSuggestionsPreference(): boolean {
+  try {
+    return localStorage.getItem(AI_SUGGESTIONS_KEY) === "1";
+  } catch {
+    return false; // off unless the person turned it on
+  }
+}
+
+export default function CodeEditor({ roomName, displayName, onAuthRejected, onSessionEnded }: CodeEditorProps) {
   // ---------- Shared document, presence, cursors ----------
-  const { doc, provider, isConnected } = useYjsDoc(roomName, onAuthRejected, displayName);
+  const { doc, provider, isConnected } = useYjsDoc(roomName, onAuthRejected, displayName, onSessionEnded);
   const users = useAwareness(provider, displayName);
   useRemoteCursorStyles(users);
 
@@ -58,6 +72,7 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected }: Co
   const me = users.find((u) => u.clientId === provider?.awareness.clientID) ?? null;
   const authorKey = useAuthorKey();
   const { user } = useAuth();
+
   // ---------- Chat ----------
   const { messages, send } = useChat(doc);
   const [showChat, setShowChat] = useState(true);
@@ -123,6 +138,44 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected }: Co
   const jumpToLine = (line: number) => {
     editorRef.current?.revealLineInCenter(line);
     editorRef.current?.setPosition({ lineNumber: line, column: 1 });
+  };
+
+  // ---------- AI: assistant, review, inline suggestions ----------
+  const [showAi, setShowAi] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState(readSuggestionsPreference);
+  const aiChat = useAiChat(roomName, language.monacoId);
+  const aiReview = useAiReview(roomName, language.monacoId, editor, monacoApi);
+  const suggestionProblem = useAiCompletions({
+    editor,
+    monacoApi,
+    sessionId: roomName,
+    enabled: aiSuggestions && !isReadOnly,
+  });
+
+  const toggleSuggestions = () => {
+    const next = !aiSuggestions;
+    setAiSuggestions(next);
+    try {
+      localStorage.setItem(AI_SUGGESTIONS_KEY, next ? "1" : "0");
+    } catch {
+      /* the choice just won't be remembered */
+    }
+  };
+
+  const getSelection = () => {
+    const ed = editorRef.current;
+    const sel = ed?.getSelection();
+    const model = ed?.getModel();
+    if (!ed || !sel || !model || sel.isEmpty()) return null;
+    return { text: model.getValueInRange(sel), startLine: sel.startLineNumber };
+  };
+
+  const insertAtCursor = (code: string) => {
+    const ed = editorRef.current;
+    const sel = ed?.getSelection();
+    if (!ed || !sel || isReadOnly) return;
+    ed.executeEdits("ai-insert", [{ range: sel, text: code, forceMoveMarkers: true }]);
+    ed.focus();
   };
 
   // ---------- Code execution (interactive console) ----------
@@ -210,10 +263,33 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected }: Co
             🕘 History
           </button>
           {isOwner && (
-               <button onClick={() => setShowExport(true)} style={headerButton}>
-                 ⬆ GitHub
-               </button>
-             )}
+            <button onClick={() => setShowExport(true)} style={headerButton}>
+              ⬆ GitHub
+            </button>
+          )}
+          <button
+            onClick={() => setShowAi((v) => !v)}
+            style={{ ...headerButton, borderColor: showAi ? "#a78bfa" : "#444" }}
+          >
+            ✨ AI
+          </button>
+          <button
+            onClick={toggleSuggestions}
+            aria-pressed={aiSuggestions}
+            title="Grey suggestions as you type. Press Tab to accept. Each suggestion is a request to the AI."
+            style={{
+              ...headerButton,
+              background: aiSuggestions ? "#312e81" : "#1e1e1e",
+              borderColor: aiSuggestions ? "#a78bfa" : "#444",
+            }}
+          >
+            Suggestions: {aiSuggestions ? "on" : "off"}
+          </button>
+          {aiSuggestions && suggestionProblem && (
+            <span style={{ fontSize: "11px", color: "#fbbf24" }} title={suggestionProblem}>
+              ⚠ {suggestionProblem.length > 60 ? `${suggestionProblem.slice(0, 57)}...` : suggestionProblem}
+            </span>
+          )}
           <button onClick={() => setShowComments((v) => !v)} style={headerButton}>
             💭 Comments{commentsApi.comments.length > 0 ? ` (${commentsApi.comments.length})` : ""}
           </button>
@@ -269,6 +345,7 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected }: Co
                 readOnly: isReadOnly,
                 readOnlyMessage: { value: "The session owner has set this session to view-only." },
                 glyphMargin: true, // room for the comment icons
+                inlineSuggest: { enabled: true }, // grey AI suggestions (when switched on)
               }}
             />
           </div>
@@ -300,8 +377,20 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected }: Co
           />
         )}
 
+        {showAi && (
+          <AiPanel
+            chat={aiChat}
+            review={aiReview}
+            getSelection={getSelection}
+            canInsert={!isReadOnly}
+            onInsert={insertAtCursor}
+            onJump={jumpToLine}
+            onClose={() => setShowAi(false)}
+          />
+        )}
+
         {showChat && (
-                    <ChatPanel
+          <ChatPanel
             messages={messages}
             me={me}
             onSend={(msg) => send({ ...msg, userId: user?.id })}
@@ -322,13 +411,13 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected }: Co
           onClose={() => setShowHistory(false)}
         />
       )}
-        {showExport && (
-           <ExportGitHubModal
-             sessionId={roomName}
-             defaultFilename={`main.${language.extension}`}
-             onClose={() => setShowExport(false)}
-           />
-         )}
+      {showExport && (
+        <ExportGitHubModal
+          sessionId={roomName}
+          defaultFilename={`main.${language.extension}`}
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </div>
   );
 }

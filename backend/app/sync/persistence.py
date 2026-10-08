@@ -59,6 +59,7 @@ async def add_snapshot(
     content: str,
     label: str | None,
     is_manual: bool,
+    created_by: uuid.UUID | None = None,
 ) -> Snapshot:
     snapshot = Snapshot(
         session_id=session_id,
@@ -66,12 +67,12 @@ async def add_snapshot(
         content=content,
         label=label,
         is_manual=is_manual,
+        created_by=created_by,
     )
     db.add(snapshot)
     await db.commit()
-    await db.refresh(snapshot)  # loads the id and created_at the database generated
+    await db.refresh(snapshot)  
     return snapshot
-
 
 async def prune_auto_snapshots(db: AsyncSession, session_id: uuid.UUID) -> None:
     newest = (
@@ -440,3 +441,12 @@ async def flush_all() -> None:
 
         await _save(t, final=True)
         _detach(t)
+
+
+async def discard_room(slug: str) -> None:
+    """Forgets a live room without saving it, because its session is being deleted.
+    Nothing more is written for it, so no data is brought back after the deletion."""
+    async with _attach_lock:
+        tracked = _active.get(slug)
+        if tracked is not None:
+            _detach(tracked)  # stops the periodic save and the change watcher

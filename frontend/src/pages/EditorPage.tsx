@@ -84,6 +84,10 @@ export default function EditorPage() {
     }
   };
 
+  const handleSessionEnded = useCallback(() => {
+    setStatus("expired");
+  }, []);
+
   // The server refused our saved password mid-session (for example after a reconnect)
   const handleAuthRejected = useCallback(() => {
     if (!sessionId) return;
@@ -101,6 +105,7 @@ export default function EditorPage() {
         roomName={sessionId}
         displayName={getDisplayName(user)}
         onAuthRejected={handleAuthRejected}
+        onSessionEnded={handleSessionEnded}
       />
       </div>
     );
@@ -129,8 +134,10 @@ export default function EditorPage() {
       {status === "expired" && (
         <>
           <h2 style={{ margin: 0 }}>Session expired</h2>
-          <p style={{ margin: 0, color: "#aaa", fontSize: "14px" }}>This session is no longer available.</p>
-        </>
+          <p style={{ margin: 0, color: "#aaa", fontSize: "14px" }}>
+            This session has expired and its data was deleted.
+          </p>
+          </>
       )}
       {status === "error" && (
         <>

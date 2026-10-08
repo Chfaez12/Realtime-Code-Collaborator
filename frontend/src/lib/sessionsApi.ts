@@ -109,7 +109,7 @@ export interface SnapshotDetail extends SnapshotMeta {
   content: string;
 }
 
-function authHeaders(slug: string): Record<string, string> {
+export function authHeaders(slug: string): Record<string, string> {
   const headers: Record<string, string> = {};
   const ownerToken = getActiveOwnerToken(slug);
   if (ownerToken) headers["X-Owner-Token"] = ownerToken;
@@ -130,19 +130,18 @@ export function getSnapshot(slug: string, id: string) {
     headers: authHeaders(slug),
   });
 }
-
-export function createCheckpoint(slug: string, label: string) {
+export async function createCheckpoint(slug: string, label: string) {
   return request<SnapshotMeta>(snapshotsPath(slug), {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders(slug) },
+    headers: { "Content-Type": "application/json", ...authHeaders(slug), ...(await bearerHeaders()) },
     body: JSON.stringify({ label }),
   });
 }
 
-export function restoreSnapshot(slug: string, id: string) {
+export async function restoreSnapshot(slug: string, id: string) {
   return request<void>(`${snapshotsPath(slug)}/${encodeURIComponent(id)}/restore`, {
     method: "POST",
-    headers: authHeaders(slug),
+    headers: { ...authHeaders(slug), ...(await bearerHeaders()) },
   });
 }
 

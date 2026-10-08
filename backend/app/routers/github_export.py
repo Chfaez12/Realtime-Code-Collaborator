@@ -23,7 +23,7 @@ start_limiter = RequestLimiter(max_requests=10, window_seconds=3600)
 async def start_export(
     payload: ExportRequest,
     request: Request,
-    session: CodingSession = Depends(get_owned_session),  # owner only
+    session: CodingSession = Depends(get_owned_session), 
 ):
     if not github_export.is_configured():
         raise HTTPException(status_code=503, detail="GitHub export isn't configured on the server.")

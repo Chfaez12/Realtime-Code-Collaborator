@@ -5,7 +5,12 @@ import { createYjsProvider } from "../lib/websocket";
 import { getStoredPassword } from "../lib/sessionPassword";
 import { getActiveOwnerToken } from "./useSession";
 
-export function useYjsDoc(roomName: string, onAuthRejected?: () => void, displayName?: string) {
+export function useYjsDoc(
+  roomName: string,
+  onAuthRejected?: () => void,
+  displayName?: string,
+  onSessionEnded?: () => void
+) {
   const [state, setState] = useState<{ doc: Y.Doc | null; provider: WebsocketProvider | null }>({
     doc: null,
     provider: null,
@@ -16,6 +21,8 @@ export function useYjsDoc(roomName: string, onAuthRejected?: () => void, display
   // Keep the latest values without reconnecting every time they change
   const rejectedRef = useRef(onAuthRejected);
   rejectedRef.current = onAuthRejected;
+  const endedRef = useRef(onSessionEnded);
+  endedRef.current = onSessionEnded;
   const nameRef = useRef(displayName);
   nameRef.current = displayName;
 
@@ -25,6 +32,7 @@ export function useYjsDoc(roomName: string, onAuthRejected?: () => void, display
       password: getStoredPassword(roomName),
       getDisplayName: () => nameRef.current,
       onAuthRejected: () => rejectedRef.current?.(),
+      onSessionEnded: () => endedRef.current?.(),
     });
     const onStatus = ({ status }: { status: string }) => setIsConnected(status === "connected");
     const onSync = (synced: boolean) => setIsSynced(synced);

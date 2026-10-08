@@ -17,7 +17,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import CodingSession
 from app.services import participants
-from app.sync import guard, persistence
+from app.sync import guard, persistence, registry
 from app.sync.adapter import StarletteChannel
 
 log = logging.getLogger("uvicorn.error")
@@ -174,6 +174,7 @@ async def sync_endpoint(websocket: WebSocket, slug: str):
         return
 
     room = None
+    registry.add(slug, channel)
     try:
         # get_room returns the existing room or creates it; serve() below reuses the same one
         room = await websocket_server.get_room(slug)
@@ -188,6 +189,7 @@ async def sync_endpoint(websocket: WebSocket, slug: str):
     except WebSocketDisconnect:
         pass
     finally:
+        registry.remove(slug, channel)
         if room is not None:
             await persistence.release(room, slug)
         await _close(websocket)

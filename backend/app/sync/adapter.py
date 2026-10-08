@@ -52,6 +52,13 @@ class StarletteChannel:
             # connection can't take down the whole room.
             pass
 
+    async def close(self, code: int = 1000) -> None:
+        """Disconnects this client (used when a session is deleted)."""
+        try:
+            await self._ws.close(code=code)
+        except Exception:
+            pass  # already gone
+
     def _guest_update_allowed(self, update: bytes) -> bool:
         try:
             if guard.room_allows_guest_edits(self.room):

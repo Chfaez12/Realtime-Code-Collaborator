@@ -71,7 +71,12 @@ export default function SessionSettings({ sessionId, onClose }: SessionSettingsP
       setMessage({ kind: "ok", text: "Nothing to change." });
       return;
     }
-
+    if (patch.expiry && patch.expiry !== "never") {
+      const confirmed = window.confirm(
+        "When this session expires, ALL of its code, history, chat and comments are permanently deleted. Continue?"
+      );
+      if (!confirmed) return;
+    }
     setSaving(true);
     setMessage(null);
     try {
@@ -168,6 +173,11 @@ export default function SessionSettings({ sessionId, onClose }: SessionSettingsP
                 <option value="7d">Expire in 7 days</option>
                 <option value="30d">Expire in 30 days</option>
               </select>
+              {expiry !== "keep" && expiry !== "never" && (
+                <div style={{ fontSize: "11px", color: "#fbbf24", marginTop: "4px" }}>
+                  When it expires, everything in this session is permanently deleted.
+                </div>
+              )}
             </div>
 
             {message && (

@@ -12,17 +12,22 @@ const YJS_SERVER_URL: string = import.meta.env.VITE_YJS_URL ?? "ws://localhost:8
 const MESSAGE_OWNER_AUTH = 100;
 const MESSAGE_PASSWORD = 101;
 const MESSAGE_IDENTITY = 102;
+
+// Close codes sent by the server
 const CLOSE_UNAUTHORIZED = 4401;
+const CLOSE_NOT_FOUND = 4404;
+const CLOSE_EXPIRED = 4410;
 
 interface ProviderOptions {
   ownerToken?: string | null;
   password?: string | null;
   getDisplayName?: () => string | undefined;
   onAuthRejected?: () => void;
+  onSessionEnded?: () => void; // the session expired or was deleted
 }
 
 export function createYjsProvider(roomName: string, options: ProviderOptions = {}) {
-  const { ownerToken, password, getDisplayName, onAuthRejected } = options;
+  const { ownerToken, password, getDisplayName, onAuthRejected, onSessionEnded } = options;
   const doc = new Y.Doc();
   const provider = new WebsocketProvider(YJS_SERVER_URL, roomName, doc);
 
@@ -43,7 +48,6 @@ export function createYjsProvider(roomName: string, options: ProviderOptions = {
     if (password) send(MESSAGE_PASSWORD, password);
 
     // Who is this? The login token, if there is one, lets the server record the real account.
-    // Reading it can take a moment, so this one may arrive after the first sync messages.
     getAccessToken()
       .catch(() => null)
       .then((token) => {
@@ -52,11 +56,16 @@ export function createYjsProvider(roomName: string, options: ProviderOptions = {
       });
   });
 
-  // The server refused us (wrong or changed password): stop retrying and tell the page
   provider.on("connection-close", (event: CloseEvent | null) => {
-    if (event?.code === CLOSE_UNAUTHORIZED) {
+    const code = event?.code;
+    if (code === CLOSE_UNAUTHORIZED) {
+      // Wrong or changed password: stop retrying and tell the page
       provider.disconnect();
       onAuthRejected?.();
+    } else if (code === CLOSE_EXPIRED || code === CLOSE_NOT_FOUND) {
+      // The session is gone: stop retrying and tell the page
+      provider.disconnect();
+      onSessionEnded?.();
     }
   });
 
