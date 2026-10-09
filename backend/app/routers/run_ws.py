@@ -51,7 +51,7 @@ async def _close(ws: WebSocket, code: int = 1000) -> None:
     try:
         await ws.close(code=code)
     except Exception:
-        pass  # already closed
+        pass  
 
 
 async def _refuse(ws: WebSocket, message: str, code: int) -> None:
@@ -108,7 +108,7 @@ async def _bridge(browser: WebSocket, language_id: str, code: str) -> None:
                         if current_stage == "compile":
                             data = piston_client.adjust_compile_text(language_id, data)
                         output_chars += len(data)
-                        # (the rest of this branch stays the same)
+                        
                         if stream not in ("stdout", "stderr"):
                             continue
                         output_chars += len(data)

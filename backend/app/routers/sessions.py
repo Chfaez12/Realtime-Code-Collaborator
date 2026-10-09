@@ -165,7 +165,7 @@ class OwnerTokenResponse(BaseModel):
 
 @router.post("/{slug}/claim", status_code=204)
 async def claim_session(
-    session: CodingSession = Depends(get_owned_session),  # proves the caller holds the owner token
+    session: CodingSession = Depends(get_owned_session),
     user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

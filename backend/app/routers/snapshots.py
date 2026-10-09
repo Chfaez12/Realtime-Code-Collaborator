@@ -66,8 +66,6 @@ def _replace_text(doc: Doc, content: str) -> None:
 async def _restore_content(slug: str, session_id: uuid.UUID, content: str) -> None:
     room = persistence.get_active_room(slug)
     if room is not None:
-        # Editing the live document broadcasts the change to every connected editor,
-        # and the persistence observer saves it
         _replace_text(room.ydoc, content)
         return
 
@@ -137,7 +135,7 @@ async def restore_snapshot(
     snapshot = await _get_snapshot(db, session.id, snapshot_id)
     created_by = await _creator_id(db, user)
 
-    # Safety net: keep the code as it is right now, so this restore can be undone
+    
     state = await _current_state(session.slug, session.id)
     label = f"Before restoring '{snapshot.label}'" if snapshot.label else "Before restoring a version"
     await persistence.add_snapshot(

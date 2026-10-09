@@ -77,7 +77,6 @@ async def chat(
     _require_ai()
     _check_limits(request, session, chat_limiter, daily_chat)
 
-    # The code comes from the server's own copy of the document, never from the browser
     code = await current_code(session.slug, session.id)
     system = ai_prompts.chat_system(payload.language, code)
 

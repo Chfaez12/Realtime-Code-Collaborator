@@ -1,19 +1,23 @@
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
+# Ready-made settings for the AI provider. Any other provider that speaks the OpenAI chat format
+# works too: set AI_BASE_URL and the three model names yourself.
 _AI_PRESETS: dict[str, dict[str, str]] = {
     "groq": {
-    "base_url": "https://api.groq.com/openai/v1",
-    "chat": "openai/gpt-oss-120b",
-    "review": "openai/gpt-oss-120b",
-    "completion": "openai/gpt-oss-20b",
+        "base_url": "https://api.groq.com/openai/v1",
+        "chat": "openai/gpt-oss-120b",
+        "review": "openai/gpt-oss-120b",
+        "completion": "openai/gpt-oss-20b",
     },
 }
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # "development" on your computer, "production" on the server
+    environment: str = "development"
 
     database_url: str
     frontend_origin: str = "http://localhost:5173"
@@ -34,8 +38,8 @@ class Settings(BaseSettings):
     ai_enabled: bool = True
     ai_provider: str = "groq"
     ai_api_key: str = ""
-    ai_base_url: str = ""         # empty = the provider's default
-    ai_chat_model: str = ""       # empty = the provider's default
+    ai_base_url: str = ""          # empty = the provider's default
+    ai_chat_model: str = ""        # empty = the provider's default
     ai_review_model: str = ""
     ai_completion_model: str = ""
     ai_reasoning_effort: str = ""  # optional: "low", "medium", "high" or "none", for reasoning models only
@@ -61,6 +65,10 @@ class Settings(BaseSettings):
             self.ai_completion_model = preset.get("completion", "")
         self.ai_base_url = self.ai_base_url.strip().rstrip("/")
         return self
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.strip().lower() == "production"
 
     @property
     def _base_url(self) -> str:

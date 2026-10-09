@@ -9,7 +9,7 @@ from app.auth.dependencies import AuthUser, get_current_user
 from app.database import get_db
 from app.models import CodingSession, SessionDocument
 
-router = APIRouter(prefix="/me", tags=["me"])
+router = APIRouter(prefix="/mysession", tags=["mysession"])
 
 
 class MySession(BaseModel):
@@ -20,7 +20,7 @@ class MySession(BaseModel):
     has_password: bool
     created_at: datetime
     expires_at: datetime | None
-    updated_at: datetime | None  # last time the code changed
+    updated_at: datetime | None  
 
 
 @router.get("/sessions", response_model=list[MySession])

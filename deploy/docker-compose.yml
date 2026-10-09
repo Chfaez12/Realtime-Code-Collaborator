@@ -1,0 +1,71 @@
+name: collab
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m" # keeps the logs from filling the disk
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_HOSTNAME: ${APP_HOSTNAME}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # the HTTPS certificates live here
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+    logging: *logging
+
+  backend:
+    build: ../backend
+    image: collab-backend:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ENVIRONMENT: production
+      PORT: "8000"
+      PISTON_URL: http://piston:2000/api/v2 # the other container, by name
+    depends_on:
+      - piston
+    stop_grace_period: 30s # time to save open documents when stopping
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging: *logging
+    # No published port: only Caddy, on the internal network, can reach the backend
+
+  piston:
+    image: ghcr.io/engineer-man/piston
+    container_name: piston
+    restart: unless-stopped
+    privileged: true # the sandbox needs this
+    environment:
+      PISTON_DISABLE_NETWORKING: "true" # code run in the sandbox can't reach the internet or the other containers
+      PISTON_RUN_TIMEOUT: "60000"
+      PISTON_RUN_CPU_TIME: "10000"
+      PISTON_COMPILE_TIMEOUT: "20000"
+      PISTON_OUTPUT_MAX_SIZE: "65536"
+    volumes:
+      - piston_packages:/piston/packages # installed languages survive restarts
+    tmpfs:
+      - /tmp:exec
+    mem_limit: ${PISTON_MEM_LIMIT:-1536m}
+    logging: *logging
+    # No published port: never reachable from outside the server
+
+volumes:
+  caddy_data:
+  caddy_config:
+  piston_packages:
