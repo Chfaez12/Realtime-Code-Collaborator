@@ -1,26 +1,34 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import CodeEditor from "../components/editor/CodeEditor";
 import PasswordPrompt from "../components/session/PasswordPrompt";
+import Button from "../components/ui/Button";
 import { isSessionOwner } from "../hooks/useSession";
 import { clearStoredPassword, getStoredPassword, storePassword } from "../lib/sessionPassword";
 import { ApiError, getSession, verifySessionPassword } from "../lib/sessionsApi";
 import { getDisplayName, useAuth } from "../hooks/useAuth";
 import { useClaimSession } from "../hooks/useClaimSession";
 
-
 type Status = "loading" | "needs-password" | "ok" | "not-found" | "expired" | "error";
 
 const PASSWORD_CHANGED = "This session's password has changed. Please enter it again.";
+
+function Screen({ children }: { children: ReactNode }) {
+  return (
+    <div className="grid min-h-dvh place-items-center bg-canvas px-4 text-center text-neutral-200">
+      <div className="flex w-full max-w-sm flex-col items-center gap-3">{children}</div>
+    </div>
+  );
+}
 
 export default function EditorPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [status, setStatus] = useState<Status>("loading");
   const [message, setMessage] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0); // bump to retry
+  const [attempt, setAttempt] = useState(0); 
   const { user } = useAuth();
-  useClaimSession(sessionId, status === "ok");
+  useClaimSession(sessionId, status === "ok"); 
 
   useEffect(() => {
     if (!sessionId) return;
@@ -84,10 +92,6 @@ export default function EditorPage() {
     }
   };
 
-  const handleSessionEnded = useCallback(() => {
-    setStatus("expired");
-  }, []);
-
   // The server refused our saved password mid-session (for example after a reconnect)
   const handleAuthRejected = useCallback(() => {
     if (!sessionId) return;
@@ -96,69 +100,64 @@ export default function EditorPage() {
     setStatus("needs-password");
   }, [sessionId]);
 
+  // The session expired or was deleted while this page was open
+  const handleSessionEnded = useCallback(() => {
+    setStatus("expired");
+  }, []);
+
   if (!sessionId) return <Navigate to="/" replace />;
 
   if (status === "ok") {
     return (
-      <div style={{ height: "100vh" }}>
       <CodeEditor
         roomName={sessionId}
         displayName={getDisplayName(user)}
         onAuthRejected={handleAuthRejected}
         onSessionEnded={handleSessionEnded}
       />
-      </div>
+    );
+  }
+
+  if (status === "needs-password") {
+    return (
+      <Screen>
+        <PasswordPrompt onSubmit={submitPassword} error={passwordError} />
+      </Screen>
     );
   }
 
   return (
-    <div
-      style={{
-        height: "100vh", display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center", gap: "12px",
-        background: "#1e1e1e", color: "#fff", textAlign: "center",
-      }}
-    >
-      {status === "loading" && <span style={{ color: "#888" }}>Loading session...</span>}
-      {status === "needs-password" && (
-        <PasswordPrompt onSubmit={submitPassword} error={passwordError} />
+    <Screen>
+      {status === "loading" && (
+        <>
+          <span className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-accent" />
+          <span className="text-sm text-muted">Loading session...</span>
+        </>
       )}
       {status === "not-found" && (
         <>
-          <h2 style={{ margin: 0 }}>Session not found</h2>
-          <p style={{ margin: 0, color: "#aaa", fontSize: "14px" }}>
-            This session doesn't exist. Check the link, or create a new one.
-          </p>
+          <h1 className="text-xl font-semibold">Session not found</h1>
+          <p className="text-sm text-muted">This session doesn't exist. Check the link, or create a new one.</p>
         </>
       )}
       {status === "expired" && (
         <>
-          <h2 style={{ margin: 0 }}>Session expired</h2>
-          <p style={{ margin: 0, color: "#aaa", fontSize: "14px" }}>
-            This session has expired and its data was deleted.
-          </p>
-          </>
+          <h1 className="text-xl font-semibold">Session expired</h1>
+          <p className="text-sm text-muted">This session has expired and its data was deleted.</p>
+        </>
       )}
       {status === "error" && (
         <>
-          <h2 style={{ margin: 0 }}>Can't load the session</h2>
-          <p style={{ margin: 0, color: "#f87171", fontSize: "14px" }}>{message}</p>
-          <button
-            onClick={() => setAttempt((n) => n + 1)}
-            style={{
-              padding: "6px 14px", borderRadius: "4px", border: "1px solid #555",
-              background: "transparent", color: "#fff", cursor: "pointer",
-            }}
-          >
-            Try again
-          </button>
+          <h1 className="text-xl font-semibold">Can't load the session</h1>
+          <p className="text-sm text-red-400">{message}</p>
+          <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
         </>
       )}
       {status !== "loading" && (
-        <Link to="/" style={{ color: "#60a5fa", fontSize: "14px" }}>
+        <Link to="/" className="text-sm text-blue-400 hover:underline">
           Back to home
         </Link>
       )}
-    </div>
+    </Screen>
   );
 }

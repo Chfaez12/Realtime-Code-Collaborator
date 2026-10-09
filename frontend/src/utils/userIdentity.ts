@@ -4,13 +4,11 @@ const COLORS = [
   "#06b6d4", "#84cc16", "#f43f5e", "#8b5cf6",
 ];
 
-const ADJECTIVES = ["Swift", "Clever", "Bright", "Bold", "Calm", "Quiet", "Brave", "Lucky"];
-const ANIMALS = ["Fox", "Owl", "Wolf", "Bear", "Hawk", "Otter", "Lynx", "Panda"];
 
 const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
 
 export function generateGuestName(): string {
-  return `${pick(ADJECTIVES)} ${pick(ANIMALS)}`;
+  return `Guest ${1000 + Math.floor(Math.random() * 9000)}`;
 }
 
 export function generateUserColor(exclude: string[] = []): string {

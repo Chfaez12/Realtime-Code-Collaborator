@@ -1,15 +1,12 @@
-import { useState, type CSSProperties, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import Button from "../components/ui/Button";
+import { CodeIcon } from "../components/ui/Icons";
+import { cardClass, inputClass, labelClass } from "../components/ui/styles";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthRedirectError } from "../hooks/useAuthRedirectError";
 
 type Mode = "signin" | "signup";
-
-const input: CSSProperties = {
-  width: "100%", boxSizing: "border-box", padding: "10px 12px", fontSize: "14px",
-  background: "#2a2a2a", color: "#fff", border: "1px solid #444", borderRadius: "6px",
-};
-const label: CSSProperties = { fontSize: "12px", color: "#aaa", marginBottom: "4px", display: "block" };
 
 export default function LoginPage() {
   const { user, loading, isConfigured, signIn, signUp, signInWithGitHub, signInWithGoogle } = useAuth();
@@ -68,139 +65,107 @@ export default function LoginPage() {
     setNotice(null);
   };
 
-  const socialButton: CSSProperties = {
-    padding: "10px", fontSize: "14px", background: "#2a2a2a", color: "#fff",
-    border: "1px solid #444", borderRadius: "6px",
-    cursor: isConfigured ? "pointer" : "not-allowed", opacity: isConfigured ? 1 : 0.5,
-  };
-
   return (
-    <div
-      style={{
-        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-        background: "#1e1e1e", color: "#fff", padding: "16px",
-      }}
-    >
-      <div
-        style={{
-          width: "min(380px, 100%)", background: "#181818", border: "1px solid #333",
-          borderRadius: "10px", padding: "28px", textAlign: "left",
-          display: "flex", flexDirection: "column", gap: "16px",
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 600 }}>
-            {mode === "signin" ? "Welcome back" : "Create your account"}
-          </h1>
-          <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#888" }}>
-            Accounts let you save and reopen your sessions.
-          </p>
-        </div>
+    <div className="grid min-h-dvh place-items-center bg-canvas px-4 py-8">
+      <div className="flex w-full max-w-sm flex-col items-center gap-6">
+        <span className="grid h-11 w-11 place-items-center rounded-xl bg-accent text-white">
+          <CodeIcon size={20} />
+        </span>
 
-        {!isConfigured && (
-          <div style={{ fontSize: "12px", padding: "8px 10px", borderRadius: "6px", background: "#422006", color: "#fbbf24" }}>
-            Login isn't configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env, then restart the dev server.
+        <div className={`${cardClass} flex w-full flex-col gap-4 p-6`}>
+          <div>
+            <h1 className="text-xl font-semibold">{mode === "signin" ? "Welcome back" : "Create your account"}</h1>
+            <p className="mt-1 text-sm text-muted">Accounts let you save and reopen your sessions.</p>
           </div>
-        )}
-        {notice && (
-          <div style={{ fontSize: "13px", padding: "8px 10px", borderRadius: "6px", background: "#052e16", color: "#4ade80" }}>
-            {notice}
+
+          {!isConfigured && (
+            <p className="rounded-md bg-amber-950/60 px-3 py-2 text-xs text-amber-300">
+              Login isn't configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env, then restart the
+              dev server.
+            </p>
+          )}
+          {notice && <p className="rounded-md bg-emerald-950/60 px-3 py-2 text-sm text-emerald-300">{notice}</p>}
+          {shownError && (
+            <p role="alert" className="rounded-md bg-red-950/60 px-3 py-2 text-sm text-red-300">
+              {shownError}
+            </p>
+          )}
+
+          <div className="grid gap-2">
+            <Button size="md" disabled={!isConfigured} onClick={() => social(signInWithGoogle)}>
+              Continue with Google
+            </Button>
+            <Button size="md" disabled={!isConfigured} onClick={() => social(signInWithGitHub)}>
+              Continue with GitHub
+            </Button>
           </div>
-        )}
-        {shownError && (
-          <div role="alert" style={{ fontSize: "13px", padding: "8px 10px", borderRadius: "6px", background: "#450a0a", color: "#f87171" }}>
-            {shownError}
+
+          <div className="flex items-center gap-3 text-xs text-subtle">
+            <span className="h-px flex-1 bg-line" />
+            or
+            <span className="h-px flex-1 bg-line" />
           </div>
-        )}
 
-        <button
-          type="button"
-          onClick={() => social(signInWithGoogle)}
-          disabled={!isConfigured}
-          style={socialButton}
-        >
-          Continue with Google
-        </button>
-
-        <button
-          type="button"
-          onClick={() => social(signInWithGitHub)}
-          disabled={!isConfigured}
-          style={socialButton}
-        >
-          Continue with GitHub
-        </button>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#666", fontSize: "12px" }}>
-          <div style={{ flex: 1, height: "1px", background: "#333" }} />
-          or
-          <div style={{ flex: 1, height: "1px", background: "#333" }} />
-        </div>
-
-        <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {mode === "signup" && (
+          <form onSubmit={submit} className="flex flex-col gap-3">
+            {mode === "signup" && (
+              <div>
+                <label htmlFor="displayName" className={labelClass}>
+                  Display name (optional)
+                </label>
+                <input
+                  id="displayName"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  maxLength={24}
+                  autoComplete="nickname"
+                  className={inputClass}
+                />
+              </div>
+            )}
             <div>
-              <label htmlFor="displayName" style={label}>Display name (optional)</label>
+              <label htmlFor="email" className={labelClass}>
+                Email
+              </label>
               <input
-                id="displayName"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                maxLength={24}
-                autoComplete="nickname"
-                style={input}
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                className={inputClass}
               />
             </div>
-          )}
-          <div>
-            <label htmlFor="email" style={label}>Email</label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              style={input}
-            />
-          </div>
-          <div>
-            <label htmlFor="password" style={label}>Password</label>
-            <input
-              id="password"
-              type="password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              style={input}
-            />
-            {mode === "signup" && <span style={{ fontSize: "11px", color: "#666" }}>At least 8 characters.</span>}
-          </div>
+            <div>
+              <label htmlFor="password" className={labelClass}>
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                className={inputClass}
+              />
+              {mode === "signup" && <p className="mt-1 text-xs text-subtle">At least 8 characters.</p>}
+            </div>
 
-          <button
-            type="submit"
-            disabled={busy || !isConfigured}
-            style={{
-              padding: "10px", fontSize: "14px", fontWeight: 600, background: "#2563eb",
-              color: "#fff", border: "none", borderRadius: "6px",
-              cursor: busy || !isConfigured ? "not-allowed" : "pointer",
-              opacity: busy || !isConfigured ? 0.6 : 1,
-            }}
-          >
-            {busy ? "Please wait..." : mode === "signin" ? "Sign in" : "Create account"}
-          </button>
-        </form>
+            <Button type="submit" variant="primary" size="md" disabled={busy || !isConfigured}>
+              {busy ? "Please wait..." : mode === "signin" ? "Sign in" : "Create account"}
+            </Button>
+          </form>
 
-        <div style={{ fontSize: "13px", color: "#aaa", display: "flex", justifyContent: "space-between" }}>
-          <button
-            type="button"
-            onClick={switchMode}
-            style={{ background: "none", border: "none", color: "#60a5fa", cursor: "pointer", padding: 0, fontSize: "13px" }}
-          >
-            {mode === "signin" ? "Need an account? Sign up" : "Have an account? Sign in"}
-          </button>
-          <Link to="/" style={{ color: "#888" }}>Continue as guest</Link>
+          <div className="flex items-center justify-between text-sm">
+            <button type="button" onClick={switchMode} className="text-blue-400 hover:underline">
+              {mode === "signin" ? "Need an account? Sign up" : "Have an account? Sign in"}
+            </button>
+            <Link to="/" className="text-muted hover:text-neutral-200">
+              Continue as guest
+            </Link>
+          </div>
         </div>
       </div>
     </div>

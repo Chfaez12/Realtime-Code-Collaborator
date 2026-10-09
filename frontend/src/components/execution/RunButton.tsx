@@ -1,3 +1,6 @@
+import Button from "../ui/Button";
+import { PlayIcon } from "../ui/Icons";
+
 interface RunButtonProps {
   onClick: () => void;
   isRunning: boolean;
@@ -5,23 +8,19 @@ interface RunButtonProps {
 }
 
 export default function RunButton({ onClick, isRunning, disabled }: RunButtonProps) {
-  const inactive = isRunning || disabled;
   return (
-    <button
-      onClick={onClick}
-      disabled={inactive}
-      style={{
-        fontSize: "12px",
-        padding: "4px 12px",
-        backgroundColor: inactive ? "#166534" : "#16a34a",
-        color: "#fff",
-        border: "none",
-        borderRadius: "4px",
-        cursor: inactive ? "not-allowed" : "pointer",
-        opacity: inactive ? 0.7 : 1,
-      }}
-    >
-      {isRunning ? "Running..." : "▶ Run"}
-    </button>
+    <Button variant="success" onClick={onClick} disabled={isRunning || disabled}>
+      {isRunning ? (
+        <>
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+          Running
+        </>
+      ) : (
+        <>
+          <PlayIcon size={12} />
+          Run
+        </>
+      )}
+    </Button>
   );
 }

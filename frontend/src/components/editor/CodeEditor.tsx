@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import { MonacoBinding } from "y-monaco";
 import type * as monaco from "monaco-editor";
@@ -16,10 +17,11 @@ import { useAuth } from "../../hooks/useAuth";
 import { useAiChat } from "../../hooks/useAiChat";
 import { useAiReview } from "../../hooks/useAiReview";
 import { useAiCompletions } from "../../hooks/useAiCompletions";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 import ParticipantList from "../session/ParticipantList";
 import ShareLinkModal from "../session/ShareLinkModal";
 import SessionSettings from "../session/SessionSettings";
-import PermissionToggle from "../session/PermissionToggle";
+import ViewOnlyBadge from "../session/ViewOnlyBadge";
 import ExportGitHubModal from "../session/ExportGitHubModal";
 import HistoryModal from "../history/HistoryModal";
 import ChatPanel from "../chat/ChatPanel";
@@ -28,24 +30,33 @@ import AiPanel from "../ai/AiPanel";
 import RunButton from "../execution/RunButton";
 import OutputConsole from "../execution/OutputConsole";
 import LanguageSelector from "./LanguageSelector";
+import Button from "../ui/Button";
+import IconButton from "../ui/IconButton";
+import DropdownMenu, { type MenuItem } from "../ui/DropdownMenu";
+import {
+  ArrowLeftIcon,
+  ChatIcon,
+  ClockIcon,
+  CommentIcon,
+  LinkIcon,
+  LockIcon,
+  MoreIcon,
+  SlidersIcon,
+  SparklesIcon,
+  UploadIcon,
+} from "../ui/Icons";
+import { cn } from "../../utils/cn";
+import { registerLanguageCompletions } from "../../utils/completions";
 import { DEFAULT_LANGUAGE, LANGUAGES, type LanguageOption } from "../../utils/languages";
 
 interface CodeEditorProps {
   roomName: string;
   displayName?: string;
-  onAuthRejected?: () => void;
-  onSessionEnded?: () => void;
+  onAuthRejected?: () => void; // called when the server refuses our password
+  onSessionEnded?: () => void; // called when the session expires or is deleted
 }
 
-const headerButton: CSSProperties = {
-  fontSize: "12px",
-  padding: "4px 10px",
-  background: "#1e1e1e",
-  color: "#fff",
-  border: "1px solid #444",
-  borderRadius: "4px",
-  cursor: "pointer",
-};
+type Panel = "chat" | "comments" | "ai";
 
 const AI_SUGGESTIONS_KEY = "collab-ai-suggestions";
 
@@ -73,19 +84,28 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected, onSe
   const authorKey = useAuthorKey();
   const { user } = useAuth();
 
+  // ---------- Layout ----------
+  const isNarrow = useMediaQuery("(max-width: 767px)");
+  // One side panel at a time. On large screens it docks beside the editor, on small ones it slides over it.
+  const [activePanel, setActivePanel] = useState<Panel | null>(() =>
+    window.matchMedia("(min-width: 1024px)").matches ? "chat" : null
+  );
+  const togglePanel = (panel: Panel) => setActivePanel((current) => (current === panel ? null : panel));
+  const closePanel = useCallback(() => setActivePanel(null), []);
+
   // ---------- Chat ----------
   const { messages, send } = useChat(doc);
-  const [showChat, setShowChat] = useState(true);
+  const chatOpen = activePanel === "chat";
   const [seenAt, setSeenAt] = useState(Date.now());
 
-  // While the panel is open, everything counts as seen
+  // While the chat is open, everything counts as seen
   useEffect(() => {
-    if (showChat && messages.length > 0) {
+    if (chatOpen && messages.length > 0) {
       setSeenAt(messages[messages.length - 1].timestamp);
     }
-  }, [showChat, messages]);
+  }, [chatOpen, messages]);
 
-  const unread = showChat
+  const unread = chatOpen
     ? 0
     : messages.filter((m) => m.timestamp > seenAt && m.clientId !== me?.clientId).length;
 
@@ -108,18 +128,17 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected, onSe
   const followed = users.find((u) => u.clientId === follow.followingId) ?? null;
 
   // ---------- Inline comments ----------
-  const [showComments, setShowComments] = useState(false);
   const [composerLine, setComposerLine] = useState(1);
   const [focusTick, setFocusTick] = useState(0);
   const [selection, setSelection] = useState<{ line: number; tick: number } | null>(null);
 
   const openComposer = useCallback((line: number) => {
     setComposerLine(line);
-    setShowComments(true);
+    setActivePanel("comments");
     setFocusTick((t) => t + 1);
   }, []);
   const openLine = useCallback((line: number) => {
-    setShowComments(true);
+    setActivePanel("comments");
     setSelection((s) => ({ line, tick: (s?.tick ?? 0) + 1 }));
   }, []);
 
@@ -138,10 +157,10 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected, onSe
   const jumpToLine = (line: number) => {
     editorRef.current?.revealLineInCenter(line);
     editorRef.current?.setPosition({ lineNumber: line, column: 1 });
+    if (isNarrow) closePanel(); // on small screens the panel covers the editor
   };
 
   // ---------- AI: assistant, review, inline suggestions ----------
-  const [showAi, setShowAi] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState(readSuggestionsPreference);
   const aiChat = useAiChat(roomName, language.monacoId);
   const aiReview = useAiReview(roomName, language.monacoId, editor, monacoApi);
@@ -184,6 +203,7 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected, onSe
   const handleEditorMount: OnMount = (editorInstance, monacoInstance) => {
     editorRef.current = editorInstance;
     monacoRef.current = monacoInstance;
+    registerLanguageCompletions(monacoInstance); // suggestion lists for the languages Monaco has no built-in support for
     setIsEditorReady(true);
   };
 
@@ -239,102 +259,112 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected, onSe
     runner.run(editorRef.current.getValue());
   };
 
+  // ---------- The ⋯ menu ----------
+  const menuItems: MenuItem[] = [
+    { id: "history", label: "Version history", icon: <ClockIcon size={15} />, onSelect: () => setShowHistory(true) },
+    {
+      id: "suggestions",
+      label: "AI suggestions",
+      icon: <SparklesIcon size={15} />,
+      checked: aiSuggestions,
+      onSelect: toggleSuggestions,
+    },
+    {
+      id: "guests",
+      label: "Guests can edit",
+      icon: <LockIcon size={15} />,
+      checked: canEdit,
+      hidden: !isOwner,
+      onSelect: () => setCanEdit(!canEdit),
+    },
+    {
+      id: "settings",
+      label: "Session settings",
+      icon: <SlidersIcon size={15} />,
+      hidden: !isOwner,
+      onSelect: () => setShowSettings(true),
+    },
+    {
+      id: "export",
+      label: "Export to GitHub",
+      icon: <UploadIcon size={15} />,
+      hidden: !isOwner,
+      onSelect: () => setShowExport(true),
+    },
+  ];
+
   // ---------- Main UI ----------
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 8px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "12px", color: isConnected ? "green" : "orange" }}>
-            {isConnected ? "● Connected" : "○ Connecting..."}
-          </span>
+    <div className="flex h-dvh flex-col bg-canvas text-neutral-200">
+      {/* Toolbar */}
+      <header className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-2 py-2 sm:px-3">
+        <div className="flex items-center gap-2">
+          <Link
+            to={user ? "/dashboard" : "/"}
+            title={user ? "Back to your sessions" : "Back to home"}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line bg-raised px-2 text-xs text-neutral-200 transition-colors hover:bg-[#2d2d30] md:h-8"
+          >
+            <ArrowLeftIcon size={14} />
+            <span className="hidden sm:inline">{user ? "Dashboard" : "Home"}</span>
+          </Link>
+          <span
+            title={isConnected ? "Connected" : "Connecting..."}
+            className={cn("h-2.5 w-2.5 shrink-0 rounded-full", isConnected ? "bg-emerald-500" : "animate-pulse bg-amber-500")}
+          />
           <LanguageSelector selected={language} onChange={handleLanguageChange} disabled={isReadOnly} />
           <RunButton onClick={handleRun} isRunning={runner.status === "running"} disabled={!isEditorReady} />
-          <button onClick={() => setShowShare(true)} style={headerButton}>
-            🔗 Share
-          </button>
-          <PermissionToggle isOwner={isOwner} canEdit={canEdit} onChange={setCanEdit} />
-          {isOwner && (
-            <button onClick={() => setShowSettings(true)} style={headerButton}>
-              ⚙ Settings
-            </button>
-          )}
-          <button onClick={() => setShowHistory(true)} style={headerButton}>
-            🕘 History
-          </button>
-          {isOwner && (
-            <button onClick={() => setShowExport(true)} style={headerButton}>
-              ⬆ GitHub
-            </button>
-          )}
-          <button
-            onClick={() => setShowAi((v) => !v)}
-            style={{ ...headerButton, borderColor: showAi ? "#a78bfa" : "#444" }}
-          >
-            ✨ AI
-          </button>
-          <button
-            onClick={toggleSuggestions}
-            aria-pressed={aiSuggestions}
-            title="Grey suggestions as you type. Press Tab to accept. Each suggestion is a request to the AI."
-            style={{
-              ...headerButton,
-              background: aiSuggestions ? "#312e81" : "#1e1e1e",
-              borderColor: aiSuggestions ? "#a78bfa" : "#444",
-            }}
-          >
-            Suggestions: {aiSuggestions ? "on" : "off"}
-          </button>
-          {aiSuggestions && suggestionProblem && (
-            <span style={{ fontSize: "11px", color: "#fbbf24" }} title={suggestionProblem}>
-              ⚠ {suggestionProblem.length > 60 ? `${suggestionProblem.slice(0, 57)}...` : suggestionProblem}
-            </span>
-          )}
-          <button onClick={() => setShowComments((v) => !v)} style={headerButton}>
-            💭 Comments{commentsApi.comments.length > 0 ? ` (${commentsApi.comments.length})` : ""}
-          </button>
-          <button onClick={() => setShowChat((v) => !v)} style={headerButton}>
-            💬 Chat
-            {unread > 0 && (
-              <span
-                style={{
-                  marginLeft: "6px", padding: "0 6px", borderRadius: "8px",
-                  background: "#ef4444", color: "#fff", fontSize: "11px",
-                }}
-              >
-                {unread > 99 ? "99+" : unread}
-              </span>
-            )}
-          </button>
-          {followed && (
-            <span
-              style={{
-                fontSize: "12px", padding: "3px 8px", borderRadius: "4px",
-                background: "#1e3a8a", color: "#bfdbfe", display: "flex", alignItems: "center", gap: "8px",
-              }}
-            >
-              Following <strong style={{ color: followed.color }}>{followed.name}</strong>
-              <button
-                onClick={follow.stop}
-                style={{ background: "transparent", border: "none", color: "#bfdbfe", cursor: "pointer", fontSize: "12px" }}
-              >
-                Stop
-              </button>
-            </span>
-          )}
+          <ViewOnlyBadge isOwner={isOwner} canEdit={canEdit} />
         </div>
-        <ParticipantList
-          users={users}
-          myClientId={me?.clientId}
-          followingId={follow.followingId}
-          onToggleFollow={follow.toggle}
-        />
-      </div>
 
-      {/* Editor + console on the left, side panels on the right */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <div style={{ flex: 1, minHeight: 0 }}>
+        <div className="ml-auto flex items-center gap-1.5">
+          <ParticipantList
+            users={users}
+            myClientId={me?.clientId}
+            followingId={follow.followingId}
+            onToggleFollow={follow.toggle}
+          />
+          <Button onClick={() => setShowShare(true)} aria-label="Share" title="Share this session">
+            <LinkIcon size={14} />
+            <span className="hidden sm:inline">Share</span>
+          </Button>
+          <IconButton label="Comments" active={activePanel === "comments"} onClick={() => togglePanel("comments")}>
+            <CommentIcon size={15} />
+            {commentsApi.comments.length > 0 && <span className="text-[11px] text-muted">{commentsApi.comments.length}</span>}
+            <span className="hidden xl:inline">Comments</span>
+          </IconButton>
+          <IconButton label="AI assistant" active={activePanel === "ai"} onClick={() => togglePanel("ai")}>
+            <SparklesIcon size={15} />
+            <span className="hidden xl:inline">AI</span>
+          </IconButton>
+          <IconButton label="Chat" active={activePanel === "chat"} badge={unread} onClick={() => togglePanel("chat")}>
+            <ChatIcon size={15} />
+            <span className="hidden xl:inline">Chat</span>
+          </IconButton>
+          <DropdownMenu label="More" trigger={<MoreIcon size={16} />} items={menuItems} />
+        </div>
+      </header>
+
+      {followed && (
+        <div className="flex items-center gap-3 bg-accent-soft px-3 py-1 text-xs text-blue-100">
+          <span>
+            Following <strong style={{ color: followed.color }}>{followed.name}</strong>
+          </span>
+          <button type="button" onClick={follow.stop} className="underline hover:text-white">
+            Stop
+          </button>
+        </div>
+      )}
+
+      {aiSuggestions && suggestionProblem && (
+        <div className="bg-amber-950/60 px-3 py-1 text-xs text-amber-300">
+          AI suggestions paused: {suggestionProblem}
+        </div>
+      )}
+
+      {/* Editor and console on the left, one side panel on the right */}
+      <div className="flex min-h-0 flex-1">
+        <main className="flex min-w-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1">
             <Editor
               height="100%"
               language={language.monacoId}
@@ -346,6 +376,16 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected, onSe
                 readOnlyMessage: { value: "The session owner has set this session to view-only." },
                 glyphMargin: true, // room for the comment icons
                 inlineSuggest: { enabled: true }, // grey AI suggestions (when switched on)
+                minimap: { enabled: false },
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                fontSize: isNarrow ? 13 : 14,
+                wordWrap: isNarrow ? "on" : "off",
+                padding: { top: 8 },
+                wordBasedSuggestions: false, // our own lists already offer the words in the file
+                quickSuggestions: { other: true, comments: false, strings: false },
+                suggestOnTriggerCharacters: true,
+                snippetSuggestions: "top",
               }}
             />
           </div>
@@ -358,48 +398,60 @@ export default function CodeEditor({ roomName, displayName, onAuthRejected, onSe
             onKill={runner.kill}
             onClear={runner.clear}
           />
-        </div>
+        </main>
 
-        {showComments && (
-          <CommentsPanel
-            comments={commentsApi.comments}
-            myKey={authorKey}
-            isOwner={isOwner}
-            composerLine={composerLine}
-            onComposerLineChange={setComposerLine}
-            focusTick={focusTick}
-            selection={selection}
-            getLineText={(line) => editorRef.current?.getModel()?.getLineContent(line) ?? ""}
-            onAdd={addComment}
-            onDelete={commentsApi.remove}
-            onJump={jumpToLine}
-            onClose={() => setShowComments(false)}
-          />
-        )}
-
-        {showAi && (
-          <AiPanel
-            chat={aiChat}
-            review={aiReview}
-            getSelection={getSelection}
-            canInsert={!isReadOnly}
-            onInsert={insertAtCursor}
-            onJump={jumpToLine}
-            onClose={() => setShowAi(false)}
-          />
-        )}
-
-        {showChat && (
-          <ChatPanel
-            messages={messages}
-            me={me}
-            onSend={(msg) => send({ ...msg, userId: user?.id })}
-            onClose={() => setShowChat(false)}
-          />
+        {activePanel && (
+          <>
+            {/* Dark backdrop behind the panel on small screens */}
+            <button
+              type="button"
+              aria-label="Close panel"
+              onClick={closePanel}
+              className="fixed inset-0 z-30 bg-black/60 lg:hidden"
+            />
+            {/* The panels still carry their own fixed widths until round 2, so the wrapper overrides them */}
+            <aside className="fixed inset-y-0 right-0 z-40 flex w-[min(100vw,24rem)] flex-col border-l border-line bg-surface shadow-2xl lg:static lg:z-auto lg:w-80 lg:shadow-none xl:w-96 [&>*]:h-full! [&>*]:w-full! [&>*]:border-l-0!">
+              {activePanel === "comments" && (
+                <CommentsPanel
+                  comments={commentsApi.comments}
+                  myKey={authorKey}
+                  isOwner={isOwner}
+                  composerLine={composerLine}
+                  onComposerLineChange={setComposerLine}
+                  focusTick={focusTick}
+                  selection={selection}
+                  getLineText={(line) => editorRef.current?.getModel()?.getLineContent(line) ?? ""}
+                  onAdd={addComment}
+                  onDelete={commentsApi.remove}
+                  onJump={jumpToLine}
+                  onClose={closePanel}
+                />
+              )}
+              {activePanel === "ai" && (
+                <AiPanel
+                  chat={aiChat}
+                  review={aiReview}
+                  getSelection={getSelection}
+                  canInsert={!isReadOnly}
+                  onInsert={insertAtCursor}
+                  onJump={jumpToLine}
+                  onClose={closePanel}
+                />
+              )}
+              {activePanel === "chat" && (
+                <ChatPanel
+                  messages={messages}
+                  me={me}
+                  onSend={(msg) => send({ ...msg, userId: user?.id })}
+                  onClose={closePanel}
+                />
+              )}
+            </aside>
+          </>
         )}
       </div>
 
-      {/* Modals */}
+      {/* Modals (restyled in round 2) */}
       {showShare && <ShareLinkModal sessionId={roomName} onClose={() => setShowShare(false)} />}
       {showSettings && <SessionSettings sessionId={roomName} onClose={() => setShowSettings(false)} />}
       {showHistory && (

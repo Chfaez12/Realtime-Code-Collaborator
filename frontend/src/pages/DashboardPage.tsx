@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import Button from "../components/ui/Button";
+import { LockIcon } from "../components/ui/Icons";
+import { cardClass } from "../components/ui/styles";
 import { getActiveOwnerToken, saveOwnerToken } from "../hooks/useSession";
 import { getDisplayName, useAuth } from "../hooks/useAuth";
 import { createSession, listMySessions, recoverOwnerToken, type MySession } from "../lib/sessionsApi";
@@ -77,86 +80,67 @@ export default function DashboardPage() {
     }
   };
 
-  const button = {
-    padding: "5px 12px", fontSize: "12px", borderRadius: "4px", cursor: "pointer",
-    background: "transparent", color: "#fff", border: "1px solid #555",
-  } as const;
-
   return (
-    <div style={{ minHeight: "100vh", background: "#1e1e1e", color: "#fff", padding: "24px 16px" }}>
-      <div style={{ maxWidth: "760px", margin: "0 auto", textAlign: "left" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+    <div className="min-h-dvh bg-canvas px-4 py-6 sm:px-8">
+      <div className="mx-auto max-w-3xl">
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 600 }}>Your sessions</h1>
-            <div style={{ fontSize: "13px", color: "#888", marginTop: "2px" }}>
-              Signed in as {getDisplayName(user)}
-            </div>
+            <h1 className="text-2xl font-semibold">Your sessions</h1>
+            <p className="mt-0.5 text-sm text-muted">Signed in as {getDisplayName(user)}</p>
           </div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <Link to="/" style={{ color: "#888", fontSize: "13px" }}>Home</Link>
-            <button onClick={signOut} style={button}>Sign out</button>
-            <button
-              onClick={create}
-              disabled={creating}
-              style={{
-                ...button, background: "#2563eb", border: "none", fontWeight: 600,
-                cursor: creating ? "not-allowed" : "pointer", opacity: creating ? 0.7 : 1,
-              }}
-            >
+          <div className="flex items-center gap-2">
+            <Link to="/" className="mr-1 text-sm text-muted hover:text-neutral-200">
+              Home
+            </Link>
+            <Button onClick={signOut}>Sign out</Button>
+            <Button variant="primary" onClick={create} disabled={creating}>
               {creating ? "Creating..." : "New session"}
-            </button>
+            </Button>
           </div>
-        </div>
+        </header>
 
         {error && (
-          <div role="alert" style={{ fontSize: "13px", padding: "8px 10px", borderRadius: "6px", background: "#450a0a", color: "#f87171", marginBottom: "12px" }}>
+          <p role="alert" className="mb-4 rounded-md bg-red-950/60 px-3 py-2 text-sm text-red-300">
             {error}
-          </div>
+          </p>
         )}
 
-        {sessions === null && !error && <div style={{ color: "#888", fontSize: "14px" }}>Loading...</div>}
+        {sessions === null && !error && <p className="text-sm text-muted">Loading...</p>}
 
         {sessions?.length === 0 && (
-          <div style={{ color: "#888", fontSize: "14px" }}>
-            Nothing here yet. Sessions you create while signed in will appear here. Ones you made as a guest
-            join your account the next time you open them while signed in.
+          <div className={`${cardClass} p-8 text-center`}>
+            <p className="text-sm text-muted">
+              Nothing here yet. Sessions you create while signed in will appear here. Ones you made as a guest join
+              your account the next time you open them while signed in.
+            </p>
           </div>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <ul className="grid gap-3">
           {sessions?.map((s) => (
-            <div
+            <li
               key={s.slug}
-              style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px",
-                background: "#181818", border: "1px solid #333", borderRadius: "8px", padding: "12px 14px",
-              }}
+              className={`${cardClass} flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between`}
             >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {s.has_password && <span title="Password protected">🔒 </span>}
-                  {s.title}
-                </div>
-                <div style={{ fontSize: "12px", color: "#888", marginTop: "3px" }}>
-                  <code style={{ color: "#aaa" }}>{s.slug}</code> · {s.language} · edited{" "}
+              <div className="min-w-0">
+                <h2 className="flex items-center gap-2 truncate text-sm font-semibold">
+                  {s.has_password && <LockIcon size={13} className="shrink-0 text-amber-400" />}
+                  <span className="truncate">{s.title}</span>
+                </h2>
+                <p className="mt-1 text-xs text-muted">
+                  <code className="text-neutral-400">{s.slug}</code> · {s.language} · edited{" "}
                   {formatDate(s.updated_at ?? s.created_at)} · {expiryLabel(s)}
-                </div>
+                </p>
               </div>
-              <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-                <button onClick={() => copyLink(s.slug)} style={button}>
-                  {copied === s.slug ? "Copied!" : "Copy link"}
-                </button>
-                <button
-                  onClick={() => open(s.slug)}
-                  disabled={opening === s.slug}
-                  style={{ ...button, background: "#2563eb", border: "none", opacity: opening === s.slug ? 0.6 : 1 }}
-                >
+              <div className="flex shrink-0 gap-2">
+                <Button onClick={() => copyLink(s.slug)}>{copied === s.slug ? "Copied!" : "Copy link"}</Button>
+                <Button variant="primary" onClick={() => open(s.slug)} disabled={opening === s.slug}>
                   {opening === s.slug ? "Opening..." : "Open"}
-                </button>
+                </Button>
               </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     </div>
   );

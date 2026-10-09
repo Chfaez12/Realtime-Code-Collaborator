@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import Button from "../components/ui/Button";
+import { CodeIcon } from "../components/ui/Icons";
+import { inputClass } from "../components/ui/styles";
 import { getDisplayName, useAuth } from "../hooks/useAuth";
 import { saveOwnerToken } from "../hooks/useSession";
 import { createSession } from "../lib/sessionsApi";
+
+const FEATURES = ["Live cursors", "Run code", "Version history", "Inline comments", "AI assistant"];
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -31,79 +36,71 @@ export default function LandingPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh", display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center", gap: "24px",
-        background: "#1e1e1e", color: "#fff", position: "relative",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute", top: 16, right: 16, fontSize: "13px",
-          display: "flex", gap: "12px", alignItems: "center",
-        }}
-      >
-        {user ? (
-          <>
-            <span style={{ color: "#aaa" }}>{getDisplayName(user)}</span>
-            <Link to="/dashboard" style={{ color: "#60a5fa" }}>Dashboard</Link>
-            <button
-              onClick={signOut}
-              style={{
-                background: "transparent", border: "1px solid #555", color: "#fff",
-                borderRadius: "4px", padding: "4px 10px", cursor: "pointer",
-              }}
-            >
-              Sign out
-            </button>
-          </>
-        ) : (
-          <Link to="/login" style={{ color: "#60a5fa" }}>Sign in</Link>
-        )}
-      </div>
-
-      <h1 style={{ fontSize: "28px", fontWeight: 600 }}>Realtime Code Collaborator</h1>
-
-      <button
-        onClick={handleCreate}
-        disabled={creating}
-        style={{
-          padding: "12px 24px", borderRadius: "6px", border: "none",
-          background: "#2563eb", color: "#fff", fontSize: "16px",
-          cursor: creating ? "not-allowed" : "pointer", opacity: creating ? 0.7 : 1,
-        }}
-      >
-        {creating ? "Creating..." : "Create session"}
-      </button>
-
-      {error && (
-        <div role="alert" style={{ fontSize: "13px", color: "#f87171", maxWidth: "360px", textAlign: "center" }}>
-          {error}
+    <div className="flex min-h-dvh flex-col bg-canvas">
+      <nav className="flex items-center justify-between gap-3 px-4 py-3 sm:px-8">
+        <span className="flex items-center gap-2 text-sm font-semibold">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-white">
+            <CodeIcon size={16} />
+          </span>
+          Code Collaborator
+        </span>
+        <div className="flex items-center gap-3 text-sm">
+          {user ? (
+            <>
+              <span className="hidden max-w-40 truncate text-muted sm:inline">{getDisplayName(user)}</span>
+              <Link to="/dashboard" className="text-blue-400 hover:underline">
+                Dashboard
+              </Link>
+              <Button onClick={signOut}>Sign out</Button>
+            </>
+          ) : (
+            <Link to="/login" className="text-blue-400 hover:underline">
+              Sign in
+            </Link>
+          )}
         </div>
-      )}
+      </nav>
 
-      <div style={{ display: "flex", gap: "8px" }}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-          placeholder="Paste link or session ID"
-          style={{
-            width: "280px", padding: "8px 12px", borderRadius: "6px",
-            border: "1px solid #444", background: "#2a2a2a", color: "#fff",
-          }}
-        />
-        <button
-          onClick={handleJoin}
-          style={{
-            padding: "8px 16px", borderRadius: "6px", border: "1px solid #555",
-            background: "transparent", color: "#fff", cursor: "pointer",
-          }}
-        >
-          Join
-        </button>
-      </div>
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-8 px-4 pb-20 text-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-5xl">Code together, in real time</h1>
+          <p className="mx-auto mt-4 max-w-md text-base text-muted sm:text-lg">
+            Share a link and edit the same code at once. Run it, review it, and keep its history.
+          </p>
+        </div>
+
+        <Button variant="primary" size="md" onClick={handleCreate} disabled={creating} className="w-full max-w-xs">
+          {creating ? "Creating..." : "Create a session"}
+        </Button>
+
+        {error && (
+          <p role="alert" className="max-w-sm text-sm text-red-400">
+            {error}
+          </p>
+        )}
+
+        <div className="flex w-full max-w-md flex-col gap-2 sm:flex-row">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+            placeholder="Paste a link or session ID"
+            aria-label="Session link or ID"
+            className={inputClass}
+          />
+          <Button size="md" onClick={handleJoin}>
+            Join
+          </Button>
+        </div>
+
+        <ul className="flex flex-wrap justify-center gap-2">
+          {FEATURES.map((feature) => (
+            <li key={feature} className="rounded-full border border-line px-3 py-1 text-xs text-muted">
+              {feature}
+            </li>
+          ))}
+        </ul>
+      </main>
     </div>
   );
 }

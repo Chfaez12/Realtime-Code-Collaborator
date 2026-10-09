@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ExitInfo } from "../../lib/runSocket";
 import type { RunStatus, Segment, SegmentKind } from "../../hooks/useCodeRunner";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
+import { cn } from "../../utils/cn";
+import { ChevronIcon, StopIcon, TerminalIcon } from "../ui/Icons";
 
 interface OutputConsoleProps {
   segments: Segment[];
@@ -12,10 +15,10 @@ interface OutputConsoleProps {
 }
 
 const COLORS: Record<SegmentKind, string> = {
-  stdout: "#ddd",
-  stderr: "#f87171",
-  stdin: "#60a5fa", // what you typed
-  info: "#888",
+  stdout: "text-neutral-200",
+  stderr: "text-red-400",
+  stdin: "text-blue-400", // what you typed
+  info: "text-neutral-500",
 };
 
 function describe(summary: ExitInfo): { text: string; failed: boolean } {
@@ -29,21 +32,28 @@ function describe(summary: ExitInfo): { text: string; failed: boolean } {
 export default function OutputConsole({
   segments, status, summary, onSubmitInput, onKill, onClear,
 }: OutputConsoleProps) {
+  const isWide = useMediaQuery("(min-width: 768px)");
+  const [open, setOpen] = useState(isWide); // collapsed by default on small screens
   const [line, setLine] = useState("");
   const bodyRef = useRef<HTMLPreElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const running = status === "running";
 
+  // A new run opens the console
+  useEffect(() => {
+    if (running) setOpen(true);
+  }, [running]);
+
   // Keep the newest output in view
   useEffect(() => {
     const el = bodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [segments]);
+  }, [segments, open]);
 
   // Put the cursor in the input as soon as a run starts
   useEffect(() => {
-    if (running) inputRef.current?.focus();
-  }, [running]);
+    if (running && open) inputRef.current?.focus();
+  }, [running, open]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -55,82 +65,69 @@ export default function OutputConsole({
   const result = summary ? describe(summary) : null;
 
   return (
-    <div
-      style={{
-        height: "220px", flexShrink: 0, display: "flex", flexDirection: "column",
-        borderTop: "1px solid #333", background: "#181818", color: "#ddd",
-      }}
-    >
-      <div
-        style={{
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          padding: "4px 12px", fontSize: "12px", borderBottom: "1px solid #2a2a2a", color: "#888",
-        }}
-      >
-        <span>
-          OUTPUT
-          {running && <span style={{ marginLeft: "12px", color: "#fbbf24" }}>running...</span>}
+    <section className="shrink-0 border-t border-line bg-surface">
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-muted">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="flex min-w-0 items-center gap-2 rounded px-1 py-1 hover:text-neutral-200"
+        >
+          <ChevronIcon size={14} className={cn("transition-transform", !open && "-rotate-90")} />
+          <TerminalIcon size={14} />
+          <span className="font-medium tracking-wide">OUTPUT</span>
+          {running && <span className="text-amber-400">running...</span>}
           {!running && result && summary && (
-            <span style={{ marginLeft: "12px", color: result.failed ? "#f87171" : "#4ade80" }}>
+            <span className={result.failed ? "text-red-400" : "text-emerald-400"}>
               {result.text} · {summary.durationMs}ms
             </span>
           )}
-        </span>
-        <span style={{ display: "flex", gap: "12px" }}>
+        </button>
+        <div className="flex items-center gap-3">
           {running && (
-            <button
-              onClick={onKill}
-              style={{ background: "transparent", border: "none", color: "#f87171", cursor: "pointer", fontSize: "12px" }}
-            >
-              ■ Stop
+            <button type="button" onClick={onKill} className="flex items-center gap-1 text-red-400 hover:text-red-300">
+              <StopIcon size={12} />
+              Stop
             </button>
           )}
-          <button
-            onClick={onClear}
-            style={{ background: "transparent", border: "none", color: "#888", cursor: "pointer", fontSize: "12px" }}
-          >
+          <button type="button" onClick={onClear} className="hover:text-neutral-200">
             Clear
           </button>
-        </span>
+        </div>
       </div>
 
-      <pre
-        ref={bodyRef}
-        style={{
-          flex: 1, margin: 0, padding: "8px 12px", overflow: "auto", textAlign: "left",
-          fontFamily: "Consolas, 'Courier New', monospace", fontSize: "13px", whiteSpace: "pre-wrap",
-        }}
-      >
-        {segments.length === 0 && status === "idle" && (
-          <span style={{ color: "#666" }}>Click Run to execute your code. If it asks for input, type it below.</span>
-        )}
-        {segments.map((s) => (
-          <span key={s.id} style={{ color: COLORS[s.kind] }}>
-            {s.text}
-          </span>
-        ))}
-        {status === "finished" && segments.length === 0 && <span style={{ color: "#666" }}>(no output)</span>}
-      </pre>
+      {open && (
+        <>
+          <pre
+            ref={bodyRef}
+            className="m-0 h-36 overflow-auto px-3 py-2 text-left font-mono text-[13px] leading-relaxed whitespace-pre-wrap md:h-52"
+          >
+            {segments.length === 0 && status === "idle" && (
+              <span className="text-subtle">Click Run to execute your code. If it asks for input, type it below.</span>
+            )}
+            {segments.map((s) => (
+              <span key={s.id} className={COLORS[s.kind]}>
+                {s.text}
+              </span>
+            ))}
+            {status === "finished" && segments.length === 0 && <span className="text-subtle">(no output)</span>}
+          </pre>
 
-      <form
-        onSubmit={submit}
-        style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px", borderTop: "1px solid #2a2a2a" }}
-      >
-        <span style={{ color: running ? "#60a5fa" : "#555", fontFamily: "monospace" }}>›</span>
-        <input
-          ref={inputRef}
-          value={line}
-          disabled={!running}
-          onChange={(e) => setLine(e.target.value)}
-          placeholder={running ? "Type your input and press Enter" : "Input is available while the program runs"}
-          autoComplete="off"
-          spellCheck={false}
-          style={{
-            flex: 1, padding: "4px 6px", fontSize: "13px", fontFamily: "Consolas, 'Courier New', monospace",
-            background: "transparent", color: "#fff", border: "none", outline: "none",
-          }}
-        />
-      </form>
-    </div>
+          <form onSubmit={submit} className="flex items-center gap-2 border-t border-line-soft px-3 py-1.5">
+            <span className={cn("font-mono", running ? "text-blue-400" : "text-subtle")}>›</span>
+            <input
+              ref={inputRef}
+              value={line}
+              disabled={!running}
+              onChange={(e) => setLine(e.target.value)}
+              placeholder={running ? "Type your input and press Enter" : "Input is available while the program runs"}
+              autoComplete="off"
+              spellCheck={false}
+              className="min-w-0 flex-1 bg-transparent py-1 font-mono text-[13px] text-neutral-100 placeholder:text-subtle focus:outline-none disabled:opacity-60"
+            />
+          </form>
+        </>
+      )}
+    </section>
   );
 }
