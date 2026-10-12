@@ -28,13 +28,15 @@ async def lifespan(app: FastAPI):
         await asyncio.gather(cleanup, return_exceptions=True)
 
 
+_is_production = settings.environment.lower() == "production"
+
 app = FastAPI(
     title="Realtime Code Collaborator API",
     lifespan=lifespan,
-    # The interactive API pages are for development, so they're switched off in production
-    docs_url=None if settings.is_production else "/docs",
-    redoc_url=None if settings.is_production else "/redoc",
-    openapi_url=None if settings.is_production else "/openapi.json",
+    # The interactive docs pages are for development, so they're off in production
+    docs_url=None if _is_production else "/docs",
+    redoc_url=None if _is_production else "/redoc",
+    openapi_url=None if _is_production else "/openapi.json",
 )
 
 # CORS applies to HTTP calls. WebSockets are checked by the Origin test in sync/server.py.

@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # "development" on your computer, "production" on the server
-    environment: str = "development"
+    environment: str = "production"
 
     database_url: str
     frontend_origin: str = "http://localhost:5173"
